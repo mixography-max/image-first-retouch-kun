@@ -1,6 +1,8 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { open } from "@tauri-apps/plugin-dialog";
 import { AnimatePresence, motion } from "framer-motion";
 import "./App.css";
 
@@ -123,6 +125,8 @@ export default function App() {
   const [result, setResult] = useState<RetouchResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>("");
   const unlistenRef = useRef<UnlistenFn | null>(null);
+  const phaseRef = useRef<Phase>(phase);
+  phaseRef.current = phase;
 
   const reset = useCallback(() => {
     setPhase("idle");
@@ -133,6 +137,7 @@ export default function App() {
   }, []);
 
   const startProcessing = useCallback(async (paths: string[]) => {
+    if (paths.length === 0) return;
     setPhase("processing");
     setProgress(null);
     setResult(null);
@@ -159,29 +164,87 @@ export default function App() {
     }
   }, []);
 
-  // Tauri drag-and-drop events
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  }, []);
+  // Tauri v2 native drag-and-drop listener
+  useEffect(() => {
+    let cancelled = false;
+    let unlistenDragDrop: UnlistenFn | null = null;
 
-  const handleDragLeave = useCallback(() => {
-    setIsDragOver(false);
-  }, []);
+    const setupDragDrop = async () => {
+      const appWindow = getCurrentWebviewWindow();
+      const unlisten = await appWindow.onDragDropEvent((event) => {
+        if (cancelled) return;
+        const { type } = event.payload;
+        if (type === "enter" || type === "over") {
+          setIsDragOver(true);
+        } else if (type === "leave") {
+          setIsDragOver(false);
+        } else if (type === "drop") {
+          setIsDragOver(false);
+          if (phaseRef.current === "processing") return;
+          const paths = event.payload.paths;
+          if (paths && paths.length > 0) {
+            startProcessing(paths);
+          }
+        }
+      });
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragOver(false);
-      if (phase !== "idle") return;
-
-      const paths: string[] = [];
-      for (const item of Array.from(e.dataTransfer.files)) {
-        // On Tauri, file.path is populated
-        const p = (item as File & { path?: string }).path;
-        if (p) paths.push(p);
+      if (cancelled) {
+        unlisten();
+      } else {
+        unlistenDragDrop = unlisten;
       }
-      if (paths.length > 0) startProcessing(paths);
+    };
+
+    setupDragDrop();
+
+    return () => {
+      cancelled = true;
+      unlistenDragDrop?.();
+    };
+  }, [startProcessing]);
+
+  const handlePickFiles = useCallback(async () => {
+    if (phase !== "idle") return;
+    try {
+      const selected = await open({
+        multiple: true,
+        directory: false,
+        title: "ファーストレタッチする写真を選択",
+        filters: [
+          {
+            name: "画像ファイル (JPEG / PNG)",
+            extensions: ["jpg", "jpeg", "png", "JPG", "JPEG", "PNG"],
+          },
+        ],
+      });
+      if (selected && Array.isArray(selected) && selected.length > 0) {
+        startProcessing(selected);
+      } else if (selected && typeof selected === "string") {
+        startProcessing([selected]);
+      }
+    } catch (e) {
+      console.error("File dialog error:", e);
+    }
+  }, [phase, startProcessing]);
+
+  const handlePickFolder = useCallback(
+    async (e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      if (phase !== "idle") return;
+      try {
+        const selected = await open({
+          directory: true,
+          multiple: true,
+          title: "ファーストレタッチするフォルダを選択",
+        });
+        if (selected && Array.isArray(selected) && selected.length > 0) {
+          startProcessing(selected);
+        } else if (selected && typeof selected === "string") {
+          startProcessing([selected]);
+        }
+      } catch (e) {
+        console.error("Folder dialog error:", e);
+      }
     },
     [phase, startProcessing]
   );
@@ -195,12 +258,7 @@ export default function App() {
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
-    <div
-      className={`app ${isDragOver ? "drag-over" : ""}`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
+    <div className={`app ${isDragOver ? "drag-over" : ""}`}>
       {/* Header */}
       <header className="app-header">
         <div className="header-inner">
@@ -221,6 +279,7 @@ export default function App() {
             <motion.div
               key="idle"
               className="drop-zone"
+              onClick={handlePickFiles}
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.97 }}
@@ -228,7 +287,26 @@ export default function App() {
             >
               <div className="drop-icon">📷</div>
               <p className="drop-title">写真・フォルダをここにドロップ</p>
-              <p className="drop-sub">Drop photos or folders here</p>
+              <p className="drop-sub">またはクリックしてファイル・フォルダを選択</p>
+              <div className="select-buttons">
+                <button
+                  type="button"
+                  className="btn-select"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePickFiles();
+                  }}
+                >
+                  🖼️ ファイルを選択
+                </button>
+                <button
+                  type="button"
+                  className="btn-select"
+                  onClick={handlePickFolder}
+                >
+                  📁 フォルダを選択
+                </button>
+              </div>
               <div className="drop-badges">
                 <span className="format-badge">JPEG</span>
                 <span className="format-badge">PNG</span>
@@ -350,3 +428,4 @@ export default function App() {
     </div>
   );
 }
+
