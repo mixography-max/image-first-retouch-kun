@@ -143,3 +143,4 @@ jobs:
           name: cli-${{ matrix.label }}
           path: |
             src-tauri/target/${{ matrix.target }}/release/${{ matrix.binary }}
+
