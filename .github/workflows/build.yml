@@ -14,12 +14,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
+          - platform: macos-15
             target: aarch64-apple-darwin
             label: macOS-arm64
-          - platform: macos-latest
-            target: x86_64-apple-darwin
-            label: macOS-x64
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
             label: Windows-x64
@@ -64,9 +61,8 @@ jobs:
             色相・色温度を一切変えずに明るさとコントラストを最適化するツールです。
 
             ## ダウンロード
-            - **macOS (Apple Silicon)**: `.dmg` ファイル (arm64)
-            - **macOS (Intel)**: `.dmg` ファイル (x64)
-            - **Windows**: `.msi` または `.exe` インストーラー
+            - **macOS 15 以降 (Apple Silicon / ARM64)**: `.dmg` ファイル (arm64)
+            - **Windows (x64)**: `.msi` または `.exe` インストーラー
 
             ## CLIコマンド
             インストール後、`first-retouch` コマンドも使用可能です。
@@ -76,7 +72,7 @@ jobs:
 
             ---
             Pure Rust実装 — 外部ランタイム不要。追加インストールは不要です。🐹
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }}
 
@@ -104,13 +100,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
+          - platform: macos-15
             target: aarch64-apple-darwin
             label: macOS-arm64
-            binary: first-retouch
-          - platform: macos-latest
-            target: x86_64-apple-darwin
-            label: macOS-x64
             binary: first-retouch
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
@@ -143,4 +135,3 @@ jobs:
           name: cli-${{ matrix.label }}
           path: |
             src-tauri/target/${{ matrix.target }}/release/${{ matrix.binary }}
-
