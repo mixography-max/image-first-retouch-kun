@@ -1,0 +1,30 @@
+[package]
+name = "image_first_retouch_kun"
+version = "1.0.0"
+description = "🐹📷 画像ファーストレタッチくん — 色相保全・明度コントラスト調和ツール"
+authors = ["r-site"]
+edition = "2021"
+default-run = "image_first_retouch_kun"
+
+[lib]
+name = "image_first_retouch_kun_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "first-retouch"
+path = "src/cli.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rayon = "1"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+clap = { version = "4", features = ["derive"] }
+walkdir = "2"
+

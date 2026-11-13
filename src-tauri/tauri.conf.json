@@ -1,0 +1,52 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "画像ファーストレタッチくん",
+  "version": "1.0.0",
+  "identifier": "com.r-site.image-first-retouch-kun",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:15100",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "title": "画像ファーストレタッチくん 🐹📷",
+        "width": 860,
+        "height": 680,
+        "minWidth": 720,
+        "minHeight": 540,
+        "dragDropEnabled": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "wix": {
+        "language": "ja-JP"
+      },
+      "nsis": {
+        "languages": ["Japanese"],
+        "displayLanguageSelector": false,
+        "installMode": "currentUser"
+      }
+    }
+  }
+}
+

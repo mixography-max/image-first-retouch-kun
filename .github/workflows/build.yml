@@ -1,0 +1,145 @@
+name: Build Installers (macOS + Windows)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            label: macOS-arm64
+          - platform: macos-14
+            target: x86_64-apple-darwin
+            label: macOS-x64
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            label: Windows-x64
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      # ═══════════════════════════════════════════════════════════════
+      # Build
+      # ═══════════════════════════════════════════════════════════════
+      - name: Build Tauri app (tag release)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "画像ファーストレタッチくん ${{ github.ref_name }}"
+          releaseBody: |
+            ## 🐹📷 画像ファーストレタッチくん — Photo First-Retouch Kun
+
+            色相・色温度を一切変えずに明るさとコントラストを最適化するツールです。
+
+            ## ダウンロード
+            - **macOS (Apple Silicon)**: `.dmg` ファイル (arm64)
+            - **macOS (Intel)**: `.dmg` ファイル (x64)
+            - **Windows**: `.msi` または `.exe` インストーラー
+
+            ## CLIコマンド
+            インストール後、`first-retouch` コマンドも使用可能です。
+            ```
+            first-retouch /path/to/photos/
+            ```
+
+            ---
+            Pure Rust実装 — 外部ランタイム不要。追加インストールは不要です。🐹
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}
+
+      - name: Build Tauri app (manual / workflow_dispatch)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: npx tauri build --target ${{ matrix.target }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.label }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app
+            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+
+  # ─────────────────────────────────────────────────────────────────
+  # CLI-only binary (also released as a standalone artifact)
+  # ─────────────────────────────────────────────────────────────────
+  cli:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            label: macOS-arm64
+            binary: first-retouch
+          - platform: macos-14
+            target: x86_64-apple-darwin
+            label: macOS-x64
+            binary: first-retouch
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            label: Windows-x64
+            binary: first-retouch.exe
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build CLI binary
+        run: |
+          cd src-tauri
+          cargo build --bin first-retouch --release --target ${{ matrix.target }}
+
+      - name: Upload CLI binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.label }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/${{ matrix.binary }}
